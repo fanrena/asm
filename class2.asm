@@ -7,7 +7,7 @@ start:
     mov bx,offset data
     mov ah,3
     mov al,18
-    mov ch,1
+    mov ch,0
     mov cl,1
     mov dh,0
     mov dl,0
@@ -26,56 +26,48 @@ start:
     int 21h
 
 data:
-    ; mov ax,2000h
-    ; mov es,ax
-    ; mov bx,0
-    ; mov ah,2
-    ; mov al,18
-    ; mov ch,0
-    ; mov cl,1
-    ; mov dh,0
-    ; mov dl,0
+    mov ax,2000h
+    mov es,ax
+    mov bx,7c00h
+    mov ah,2
+    mov al,18
+    mov ch,0
+    mov cl,1
+    mov dh,0
+    mov dl,0
 
-    ; int 13h   
+    int 13h   
+    mov ax,2000h
+    push ax
+    mov ax,offset axx-offset data+7c00h
+    push ax
+    retf
+    axx:
     jmp short start_point
-    stack:
-        db 64 dup (0)
 data_ends:nop
 
 start_point:
-    mov ax,2000h
+    mov ax,cs
     mov ss,ax
-    mov sp,offset data_ends-offset data
+    mov sp,offset stack-offset data+07c00h+128
+
+    mov bx,offset int9-offset data+7c00h+2;;;;;;
     mov ax,0
     mov es,ax
-
-    mov bx,offset int9-offset data+2;;;;;;
     push es:[9h*4]
     pop cs:[bx];;;;;;
     push es:[9h*4+2]
     pop cs:[bx+2];;;;;;
     ;int9h
-    mov word ptr es:[9h*4],offset int9-offset data
+    mov word ptr es:[9h*4],07c00h+offset int9-offset data
     mov word ptr es:[9h*4+2],2000h
-    ;reset_pc  int70h
-    ; mov word ptr ss:[70h*4],07c00h+offset reset_pc-offset data
-    ; mov word ptr ss:[70h*4+2],0
-    ; ;start_system  int71h
-    ; mov word ptr ss:[71h*4],07c00h+offset start_system-offset data
-    ; mov word ptr ss:[71h*4+2],0
-    ; ;clock  int72h
-    ; mov word ptr ss:[72h*4],07c00h+offset clock-offset data
-    ; mov word ptr ss:[72h*4+2],0
-    ; ;set_clock int73h
-    ; mov word ptr ss:[73h*4],07c00h+offset set_clock-offset data
-    ; mov word ptr ss:[73h*4+2],0
-    ; ;clear screen blue  int7ch
-    mov word ptr es:[7ch*4],offset clear_screen_blue-offset data
-    mov word ptr es:[7ch*4+2],2000h
+    ; ;clear screen blue  int74h
+    mov word ptr es:[74h*4],07c00h+offset clear_screen_blue-offset data
+    mov word ptr es:[74h*4+2],2000h
 
     sti
 main_page:
-    int 7ch
+    int 74h
     jmp short main_page_start
     db '1:reset_pc',0
     db '2:start_system',0
@@ -85,7 +77,7 @@ main_page:
     mov ax,0b800h
     mov es,ax
     mov bx,0
-    mov si,offset main_page-offset data+2;;;;;;
+    mov si,offset main_page-offset data+7c00h+2;;;;;;
     mps_loop:
         mov al,cs:[si]
         cmp al,0
@@ -155,7 +147,7 @@ int9:
         mov byte ptr es:[161],01000000B
         in al,60h
         pushf
-        mov bx,offset int9-offset data+2
+        mov bx,offset int9-offset data+7c00h+2
         call dword ptr cs:[bx]
 
         cmp al,01h
@@ -165,7 +157,7 @@ int9:
         jmp short int9iret
         fesc:   
             mov bp,sp
-            mov word ptr [bp+14],offset main_page-offset data
+            mov word ptr [bp+14],offset main_page-offset data+7c00h
             mov word ptr [bp+16],2000h
         jmp short int9iret
         fcolor:
@@ -192,59 +184,15 @@ int9:
 reset_pc:
     PUSH BX
     PUSH ES
-    MOV BX,2000h
+    MOV BX,cs
     MOV ES,BX
-    mov bx,offset jw-offset data
+    mov bx,offset jw-offset data+7c00h
     jmp dword ptr Es:[bx]
     POP ES
     POP BX
     iret
     jw:dw 0,0ffffh
-start_system:
-        cli
-    ;     jmp short r
-    ; ss_temp:
-    ; dw 0,2000h
-    ; r:
-    ;     mov si,offset do0-offset data
-    ;     mov di,0h
-    ;     mov ax,0
-    ;     mov ds,ax
-    ;     mov es,2000h
-    ;     mov es,ax
-    ;     mov cx,offset do0end-offset do0
-    ;     cld
-    ;     rep movsb
-    ;     mov bx,0
-    ;     mov es,bx
-    ;     mov bx,offset ss_temp-offset data+7c00h
-    ;     jmp dword ptr es:[bx]
-    do0:
-        jmp short do0j
-        dw 7c00h,0
-        do0j:
-        mov ax,0b800h
-        mov es,ax
-        mov byte ptr es:[1],00100111B
-        mov ax,0
-        mov es,ax
-        mov bx,7c00h
-        mov al,1
-        mov ch,0
-        mov cl,1
-        mov dh,0
-        mov dl,80h
 
-        mov ah,2
-        int 13h
-        
-        MOV AX,0
-        PUSH AX
-        MOV AX,7C00h
-        PUSH AX
-        ;iret;
-        RETf
-    do0end:nop
 clock:
     cli;;;;;;;;;;;;;;;;;;;;;;;;;
     push ax
@@ -252,14 +200,23 @@ clock:
     push cx
     push si
 
-    int 7ch
+    int 74h
+    mov cx,18
+    mov bx,0b800h
+    mov es,bx
+    mov bx,3*160+4*2
+    set_font_color:
+        mov byte ptr es:[bx+1],01110100B
+        add bx,2
+    loop set_font_color
+
     jmp short clock_dynmic_show
     clock_a:db 9,8,7,4,2,0
     clock_b:db 1,1,3,2,2,3
     clock_dynmic_show:
         mov dl,4
         mov dh,3
-        mov si,offset clock_a-offset data
+        mov si,offset clock_a-offset data+7c00h
         mov cx,6
         t:
             push cx
@@ -293,10 +250,7 @@ clock:
             pop ax
 
             mov byte ptr es:[bx+si],ah
-            mov byte ptr es:[bx+si+1],01110100B
             mov byte ptr es:[bx+si+2],al
-            mov byte ptr es:[bx+si+3],01110100B
-            mov byte ptr es:[bx+si+5],01110100B
             pop cx
             cmp cx,1
             je clock_date
@@ -332,23 +286,37 @@ clock:
     pop dx
     pop ax
     sti;;;;;;;;;;;;;;;;;;;;;;
-    int 7ch
+    int 74h
     ;iret
     RET    
 set_clock:
     JMP SHORT SC_START
+    notice:db 'please input the date:'
     string:db 18 DUP (0)
     sclock_a:db 9,8,7,4,2,0
     SC_START:
+
+    mov bx,0b800h
+    mov ds,bx
+    mov di,160*7+2*5
+    mov bx,offset notice-offset data+7c00h
+    mov cx,offset string-offset notice
+    show_notice_loop:
+    mov al,cs:[bx]
+    mov ds:[di],al
+    inc bx
+    add di,2
+    loop show_notice_loop
+    
     mov ax,CS
     mov ds,ax
-    mov si,offset string-offset data
+    mov si,offset string-offset data+7c00h
     MOV DL,5
     MOV DH,8
     MOV CX,0
     call getstr
-    mov si,offset string-offset data
-    mov di,offset sclock_a-offset data
+    mov si,offset string-offset data+7c00h
+    mov di,offset sclock_a-offset data+7c00h
     mov cx,6
     sc_loop:
     PUSH CX
@@ -371,7 +339,7 @@ set_clock:
     POP CX
     loop sc_loop
 
-    INT 7ch
+    INT 74H
     ;IRET
     RET
 
@@ -495,8 +463,54 @@ clear_screen_blue:
     pop bx
     pop ax
     iret
+start_system:
+    int 74h
+    ; mov si,offset do0-offset data+7c00h
+    ; mov di,7c00h
+    ; mov ax,0
+    ; mov es,ax
+    ; mov ax,0
+    ; mov ds,ax
+    ; mov cx,offset do0end-do0
+    ; cld 
+    ; rep movsb
+    ; mov ax,0
+    ; push ax
+    ; mov ax,7c00h
+    ; push ax
+    ; retf
+    do0:
+        mov bx,offset int9-offset data+7c00h+2;;;;;;
+        mov ax,0
+        mov es,ax
+        push cs:[bx];;;;;;
+        pop es:[9h*4]
+        push cs:[bx+2];;;;;;
+        pop es:[9h*4+2]
+        mov ax,0b800h
+        mov es,ax
+        mov byte ptr es:[161],00100111B
+        mov ax,0
+        mov es,ax
+        mov bx,7c00h
+        mov al,1
+        mov ch,0
+        mov cl,1
+        mov dh,0
+        mov dl,80h
 
-
+        mov ah,2
+        int 13h
+        MOV AX,0
+        PUSH AX
+        MOV AX,7C00h
+        PUSH AX
+        ;iret;
+        retf
+    do0end:nop
+    db 128 dup(0)
+    stack:
+        db 128 dup(0)
 
 prog_end:nop
 
